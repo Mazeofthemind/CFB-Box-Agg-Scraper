@@ -70,7 +70,6 @@ def soup_parse_box_score(html_text, game_id):
     running_receiving_stats = running_recieving_processor(running_receiving_div, game_id)
     
     #Add the game_id to reach row to assist in post-aggregation identification
-    print(running_receiving_stats)
     return running_receiving_stats
 
 def extract_box_score(start_url, config):
@@ -78,7 +77,7 @@ def extract_box_score(start_url, config):
     
     '''
     game_id = start_url.split('/')[3].split('.')[0]
-    print(game_id)
+    logging.info("Extracting box score from {} game".format(game_id))
     complete_url = config['base_url'] + start_url 
     box_score_request = requests.get(complete_url, headers=headers)
     box_score_text = box_score_request.text
@@ -86,6 +85,10 @@ def extract_box_score(start_url, config):
         cache_handle.write(box_score_text)
         
     box_stats = soup_parse_box_score(box_score_text, game_id)
+
+    #Sleep to help avoid spider detection
+    logging.info("Resting for configured {}".format(config['sleep_time_s']))
+    time.sleep(config['sleep_time_s'])
     return box_stats
 
 def parse_game_week_page(html_text):
@@ -96,7 +99,6 @@ def parse_game_week_page(html_text):
     '''
     soup = BeautifulSoup(html_text, 'html.parser')
     game_table_elements = soup.findAll("td", {"class": "gamelink"})
-    print(game_table_elements)
     game_table_links = list(map(lambda element: element.find("a")['href'], game_table_elements))
     
     logging.info("{} games scraped for week".format(len(game_table_links)))
@@ -105,7 +107,6 @@ def parse_game_week_page(html_text):
     #with known text content
     all_links = soup.findAll("a")
     next_week_link_element = list(filter(lambda element: element.text == "Next Week", all_links))
-    print(next_week_link_element)
     next_week_link = next_week_link_element[0]["href"]
     
     return (game_table_links, next_week_link)
@@ -169,10 +170,13 @@ if __name__ == '__main__':
             
     
     #Iterate through list of starting urls and 
-    boxscore_starting_urls = boxscore_starting_urls[:1] #For testing use only the first starting url
+    #boxscore_starting_urls = boxscore_starting_urls[:2] #For testing use only the first starting url
     game_url_lists = list(map(lambda x: extract_year_game_urls(x, config), boxscore_starting_urls))
     flattened_game_urls = [item for sublist in game_url_lists for item in sublist]
     
-    flattened_game_urls = flattened_game_urls[:1]
-    box_scores = list(map(lambda x: extract_box_score(x, config), flattened_game_urls))
-    print(box_scores)
+    #flattened_game_urls = flattened_game_urls[:2]
+    player_box_stats = list(map(lambda x: extract_box_score(x, config), flattened_game_urls))
+    flattened_box_stats = [item for sublist in player_box_stats for item in sublist]
+    print(flattened_box_stats)
+    with open('./player_box_stats.html', 'w') as cache_handle:
+        json.dumps(flattened_box_stats)
